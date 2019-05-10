@@ -44,20 +44,15 @@ Created on Sun Apr 21 15:23:07 2019
     实现跨节点作图。已完成 20190419
     
     生成图片提示位置。
-    流量信息。
     
 """
 
 #%% 导包
 import os
-import sys
 import numpy as np
 import cv2 as cv
 from time import time
-try:
-    import ujson as json
-except ImportError:
-    import json
+import json
 from collections import defaultdict
 # from TimeTools import RunTime
 # RunTime.init()
@@ -316,13 +311,43 @@ def buildDict(car_path,road_path,cross_path,preAns_path,startCrossId=None,comput
     
     return CARDICT,ROADDICT,CROSSDICT,CARNAMESPACE,ROADNAMESPACE,CROSSNAMESPACE,directionDict,nebDict
 
-#%% getCarArrars
-from collections import defaultdict
-import numpy as np
-
 #%% Visualization
 class Visualization(object):
-    def __init__(self,car_path,road_path,cross_path,preAns_path,savePath,jsonFileName=None,**kwargs):
+    def __init__(self,car_path,road_path,cross_path,preAns_path,savePath,**kwargs):
+        """
+        Parameters
+        ----------
+        car_path : str
+            car.txt 的路径. 如 "C:/car.txt"
+        road_path : str
+            road.txt 的路径.
+        cross_path : str
+            cross.txt 的路径.
+        preAns_path : str
+            presetAnswer.txt 的路径.
+        savePath : str
+            存放生成的图片的目录. 如 "C:/imgs/"
+        **kwargs : dict
+            其他控制参数，可不传递，使用默认即可。
+            randomColor = False 参数控制普通车子是否使用随机颜色标色，默认为False，即不随机，普通车统一用绿色标色。
+                普通车用绿色
+                优先车用紫色
+                预置车用蓝色
+                优先预置车用红色
+            sizeExpand = 1 参数，控制图的大小，默认为1倍，即原来的图，以及不同车标记不同色的方案。可选为2。
+                若为2，则在旁边标记是否是特殊车辆（不建议使用该值）。
+            showRoadInfo = True 参数，控制是否显示红色的道路情况信息，默认True
+            reduceDraw = 0 参数，选择减少绘制的方式，默认为2（不建议使用其他值）。
+                0: 原作者绘制方式，每500张图片100s。只在0时，sizeExpand参数有效。
+                1：采用长条方案，减少18s。
+                2：长条方案+预计算位置：比1方式再减少10s。
+            computeCoordinate = 1 参数。默认为1，即原作者坐标计算方式。
+                若为2，计算方式增强，可以计算道路跨坐标（如map-stange-*中的图）的图（要用到 CrossCoordinate.py 文件）。
+        Returns
+        -------
+        self object.
+
+        """
         self.maxX,self.maxY = 0,0
         if not os.path.exists(savePath):
             #@zj 自动新建可视化图片的保存文件夹
@@ -405,7 +430,8 @@ class Visualization(object):
                 assert False
         else:
             assert False
-            
+        
+        jsonFileName = kwargs.get("jsonFileName",None);
         if jsonFileName is not None:
             self.drawFromJsonFile(jsonFileName)
 
@@ -995,8 +1021,8 @@ class Visualization(object):
         # 绘制方向信息
         cv.putText(img,"%d->%d"%(road.__from__(),road.__to__()),(road.pos_info['dire'][0],road.pos_info['dire'][1]),\
                         cv.FONT_HERSHEY_SIMPLEX,self.fontSize,[0,0,255],1)
-        # 绘制长度和速度信息，还有流量信息
-        cv.putText(img,"%d,%d,%d"%(road.__length__(),road.__speed__(),road.__channel__() * road.__speed__()),\
+        # 绘制长度和速度信息
+        cv.putText(img,"%d,%d"%(road.__length__(),road.__speed__()), \
                     (road.pos_info['spee'][0],road.pos_info['spee'][1]),\
                     cv.FONT_HERSHEY_SIMPLEX,self.fontSize,[0,0,255],1)    
         
@@ -1218,11 +1244,6 @@ if __name__ == '__main__':
     #   优先车用紫色
     #   预置车用蓝色
     #   优先预置车用红色
-    # sizeExpand = 1 参数，控制图的大小，默认为1倍，即原来的图，以及不同车标记不同色的方案。可选为2，若为2，则在旁边标记是否是特殊车辆
-    # showRoadInfo = True 参数，控制是否显示红色的道路情况信息，默认True
-    # reduceDraw = 0 参数，默认为2。只在0时，sizeExpand参数有效。
-    #       选择减少绘制的方式。0: 原作者绘制方式，每500张图片100s。1：采用长条方案，减少18s。2：长条方案+预计算位置：比1方式再减少10s。
-    # computeCoordinate = 1 参数。默认为1，即原作者坐标计算方式。若为2，可以计算带有跨坐标的图（需要CrossCoordinate.py文件）。
     visual = Visualization(car_path,road_path,cross_path,preAns_path,savePath,\
                             # randomColor = True, \
                             # sizeExpand = 2, \
@@ -1233,24 +1254,33 @@ if __name__ == '__main__':
                             )
     visual.drawMap('empty') # 只调用此接口绘制一张空图，图名称为empty。绘制空图时，presetAnswer文件和car.txt文件可以为空。
 
-    visual.drawImgsFromJsonFile(config + 'result_java.json') # ../3-map-training-2/
+    # 3-map-training-2 地图下，附带一个json文件
+    # visual.drawImgsFromJsonFile(config + 'result_java.json') 
     
     #%%
-    # json的示例数据 ../2-map-training-1/
+    # json的示例数据，drawImgsFromJsonFile 接口传递的json文件内容即是这种json格式
+    # 此示例数据仅对 2-map-training-1 地图有效。
+    # 注意，所有内容均是字符串。
     jsonDict = {
-        "00_1":{ 
-            "5689":{
-                "2":{
-                    "20556":"9",
+        "1":{  # "1" 是当前调度时刻，如 1,2,3 等。
+            "5689":{  # "5689" 是某条道路
+                "2":{ # "2" 是 "5689" 这条路的某条车道号
+                      # 这里车道号规则，以 双向3车道为例
+                      # 正向道路，靠近中间的就是0，外侧是2
+                      # 反向道路，靠近中间的是3，外侧是5
+                      # 其排列应该是 5 4 3 || 0 1 2 (向上的方向是正向方向)
+                    "20556":"0", 
+                      # id="20556"的车，离车道起始点的位置（从0开始）
+                      # 正向车道起始点就是1764，反向车道起始点是790
                     "37819":"10", # 预置
                     "45938":"12", # 优先
-                    "55541":"14", # 优先预置
+                    "55541":"19", # 优先预置
                 },
                 "4":{
-                    "20556":"9",
+                    "20556":"0",
                     "37819":"10", # 预置
                     # "45938":"12", # 优先
-                    "55541":"14", # 优先预置
+                    "55541":"19", # 优先预置
                 },
             },
             "6097":{
@@ -1262,7 +1292,7 @@ if __name__ == '__main__':
                 },
             },  
         },
-        "00_2":{ 
+        "2":{ 
             "5689":{
                 "1":{
                     "20556":"9",
